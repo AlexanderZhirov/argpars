@@ -3,10 +3,10 @@
 ```cpp
 int main(int argc, char *argv[])
 {
-    Config cfg(error, false);
-    cfg.addKey('h', "hello", Config::NO);
-    cfg.addKey('m', "my", Config::OPTIONAL);
-    cfg.addKey('w', "world", Config::REQUIRED);
+    ArgPars cfg(error, false);
+    cfg.addKey('h', "hello", ArgPars::NO);
+    cfg.addKey('m', "my", ArgPars::OPTIONAL);
+    cfg.addKey('w', "world", ArgPars::REQUIRED);
     cfg.readArguments(argc, argv);
 
     if (cfg.checkKey('h'))

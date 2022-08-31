@@ -47,3 +47,11 @@ int main(int argc, char *argv[])
     return 0;
 }
 ```
+
+Запуск примера:
+
+```sh
+$ ./app --help="Hello, World" -n"Александр Жиров"
+Hello, World
+Александр Жиров
+```

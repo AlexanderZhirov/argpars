@@ -1,0 +1,17 @@
+{
+    "files.associations": {
+        "functional": "cpp",
+        "type_traits": "cpp",
+        "variant": "cpp",
+        "__hash_table": "cpp",
+        "deque": "cpp",
+        "map": "cpp",
+        "memory": "cpp",
+        "mutex": "cpp",
+        "optional": "cpp",
+        "queue": "cpp",
+        "thread": "cpp",
+        "unordered_map": "cpp",
+        "vector": "cpp"
+    }
+}

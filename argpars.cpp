@@ -7,110 +7,125 @@
 
 #include <argpars.hpp>
 
-ArgPars::ArgPars(cPtr callback, bool silencemode) :
-        longOptions(nullptr), sizeLongOption(0), shortOptions(nullptr), sizeShortOption(0), _callback(callback)
+namespace args
 {
-    if (silencemode)
+
+ConfigOption::ConfigOption(const std::string &longParameter, const char shortParameter, const hasArg ha, _handler h) :
+        _longParameter(nullptr), _shortParameter(shortParameter), _ha(ha), _h(h)
+{
+    _longParameter = new char[longParameter.length() + 1];
+    strcpy(_longParameter, longParameter.c_str());
+}
+
+const char* ConfigOption::getLongParameter() const
+{
+    return _longParameter;
+}
+
+const char& ConfigOption::getShortParameter() const
+{
+    return _shortParameter;
+}
+
+const hasArg& ConfigOption::getPresenceArgument() const
+{
+    return _ha;
+}
+
+const _handler ConfigOption::getHandler() const
+{
+    return _h;
+}
+
+std::vector<std::string> Option::_handling() const
+{
+    return _h ? _h(_values) : _values;
+}
+
+Option::Option(const _handler h) :
+        _h(h)
+{
+}
+void Option::push(const std::string &value)
+{
+    _values.push_back(value);
+}
+std::vector<std::string> Option::getValues(bool handling)
+{
+    if (handling)
+        return _handling();
+    return _values;
+}
+
+void Hub::_createArguments(const std::vector<ConfigOption> &options, bool silence)
+{
+    _longOptions = new struct option[options.size() + 1];
+    std::string temp;
+    if (silence)
+        temp.push_back(':');
+    for (auto const &opt : options | boost::adaptors::indexed(0))
     {
-        shortOptions = new char[++sizeShortOption];
-        shortOptions[0] = ':';
-    }
-}
+        _longOptions[opt.index()].name = opt.value().getLongParameter();
+        _longOptions[opt.index()].has_arg = opt.value().getPresenceArgument();
+        _longOptions[opt.index()].flag = nullptr;
+        _longOptions[opt.index()].val = opt.value().getShortParameter();
 
-void ArgPars::addShortOption(const char shortKey, hasArg argument)
-{
-    size_t sizeTemp = sizeShortOption;
-    if (argument == hasArg::REQUIRED)
-        ++sizeShortOption;
-    else if (argument == hasArg::OPTIONAL)
-        sizeShortOption += 2;
-    char *temp = new char[++sizeShortOption];
-    if (sizeTemp)
-        strcpy(temp, shortOptions);
-    temp[sizeTemp++] = shortKey;
-    if (argument == hasArg::REQUIRED)
-        temp[sizeTemp] = ':';
-    else if (argument == hasArg::OPTIONAL)
-        strcpy(&temp[sizeTemp], "::");
-    delete[] shortOptions;
-    shortOptions = temp;
-    cfg[shortKey].first = false;
-}
-
-struct option ArgPars::createNewOption(const char shortKey, const std::string &longKey, hasArg argument)
-{
-    struct option newOption;
-    char *name = new char[longKey.length() + 1];
-    strcpy(name, longKey.c_str());
-    newOption.name = name;
-    newOption.has_arg = argument;
-    newOption.flag = nullptr;
-    newOption.val = shortKey;
-    return newOption;
-}
-
-void ArgPars::addLongOption(const char shortKey, const std::string &longKey, hasArg argument)
-{
-    struct option *temp = new struct option[++sizeLongOption];
-    for (size_t i = 0; i < sizeLongOption - 1; ++i)
-        temp[i] = longOptions[i];
-    temp[sizeLongOption - 1] = createNewOption(shortKey, longKey, argument);
-    delete[] longOptions;
-    longOptions = temp;
-}
-
-void ArgPars::readArguments(int argc, char *argv[])
-{
-    int option_index;
-    int next_option;
-    while ((next_option = getopt_long(argc, argv, shortOptions, longOptions, &option_index)) != -1)
-    {
-        if (cfg.count(next_option))
+        temp.push_back(opt.value().getShortParameter());
+        switch (opt.value().getPresenceArgument())
         {
-            cfg[next_option].first = true;
+        case hasArg::OPTIONAL:
+            temp.push_back(':');
+        case hasArg::REQUIRED:
+            temp.push_back(':');
+            break;
+        case hasArg::NO:
+            break;
+        }
+
+        _arguments[opt.value().getShortParameter()].first = false;
+        _arguments[opt.value().getShortParameter()].second =
+        { opt.value().getHandler() };
+    }
+
+    _longOptions[options.size()].name = nullptr;
+    _longOptions[options.size()].has_arg = 0;
+    _longOptions[options.size()].flag = nullptr;
+    _longOptions[options.size()].val = 0;
+
+    _shortOptions = new char[temp.size() + 1];
+    strcpy(_shortOptions, temp.c_str());
+}
+
+Hub::Hub(const std::vector<ConfigOption> &options, bool silence) :
+        _longOptions(nullptr), _shortOptions(nullptr)
+{
+    _createArguments(options, silence);
+}
+
+void Hub::readArguments(int argc, char *argv[], void (*_callback)())
+{
+    int next_option;
+    while ((next_option = getopt_long(argc, argv, _shortOptions, _longOptions, nullptr)) != -1)
+    {
+        if (_arguments.count(next_option))
+        {
+            _arguments[next_option].first = true;
             if (optarg)
-                cfg[next_option].second.push_back(std::string(optarg));
+                _arguments[next_option].second.push(std::string(optarg));
         }
         if (next_option == '?' && _callback)
             _callback();
     }
 }
 
-void ArgPars::addKey(const char shortKey, const std::string &longKey, hasArg argument)
+Option Hub::getOption(char key) const
 {
-    addShortOption(shortKey, argument);
-    addLongOption(shortKey, longKey, argument);
+    return _arguments.count(key) && _arguments.at(key).first ? _arguments.at(key).second : Option();
 }
 
-void ArgPars::addNullKey()
+Hub::~Hub()
 {
-    struct option *temp = new struct option[++sizeLongOption];
-    for (size_t i = 0; i < sizeLongOption - 1; ++i)
-        temp[i] = longOptions[i];
-    temp[sizeLongOption - 1] = option
-    { nullptr, 0, nullptr, 0 };
-    delete[] longOptions;
-    longOptions = temp;
+    delete[] _shortOptions;
 }
 
-bool ArgPars::checkKey(const char shortKey)
-{
-    return cfg.count(shortKey) > 0 && cfg[shortKey].first;
-}
-
-std::string ArgPars::getValue(const char shortKey)
-{
-    if (cfg.count(shortKey) && cfg[shortKey].first)
-    {
-        if (cfg[shortKey].second.size())
-            return cfg[shortKey].second.front();
-    }
-    return {};
-}
-
-std::vector<std::string> ArgPars::getValues(const char shortKey)
-{
-    if (cfg.count(shortKey) && cfg[shortKey].first)
-        return cfg[shortKey].second;
-    return {};
 }
